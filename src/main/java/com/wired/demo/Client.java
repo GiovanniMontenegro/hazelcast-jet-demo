@@ -21,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.hazelcast.jet.Util.*;
 import static com.hazelcast.jet.aggregate.AggregateOperations.allOf;
+import static com.hazelcast.jet.aggregate.AggregateOperations.toSet;
 import static com.hazelcast.jet.function.DistributedFunction.identity;
 import static com.hazelcast.jet.pipeline.SinkBuilder.sinkBuilder;
 
@@ -109,54 +110,22 @@ public class Client extends Thread {
                     (d1, d2) -> d1)).setName("one aggregation");
             //eventsHappened.drainTo(buildCustomSink());
 
+            /**
+             * We are going to take all the event aggregated by key.
+             */
             eventsHappened.window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS))
                     .aggregate(AggregateOperations.toMap(e -> e.getKey(),e -> e.getValue()))
                     .drainTo(Sinks.logger());
-            /*
-             * Aggregate the events happened by code (car plate)
-             */
-            StreamStage<Set<String>> afterRollingAggregate = eventsHappened
-                    .flatMap(e -> Traversers.traverseIterable(e.getValue().getValues().keySet()))
-                    .rollingAggregate(AggregateOperations.toSet());
-
-            /*
-             * Put the events on a distinc map, to use it later
-             */
-            afterRollingAggregate.drainTo(Sinks.mapWithMerging(DISTINCT_MAP, strings -> DISTINCT_ATTR_LIST, identity(), (t1, t2) -> {
-                t2.addAll(t1);
-                return t2;
-            }));
-
 
             /**
-             * --------------
+             * We are going to take all the key changed in all events to make some count after.
              */
-
-
-            /**
-             * Show the events happened by code (car plate)
-             */
-            //eventsHappened.drainTo(buildCustomSink());
+            eventsHappened.window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS))
+                    .aggregate(AggregateOperations.groupingBy(e -> "DISTINCT", AggregateOperations.mapping(e -> e.getValue().getValues().keySet(), toSet().withAccumulateFn(Set::addAll))))
+                    .drainTo(Sinks.logger());
 
 
             localJet.newJob(pipeline);
-
-            /*
-             * Pipeline with source from distinct map
-             */
-            Pipeline distinctMapPipeline = Pipeline.create();
-            /*
-             * We take all the attribute changed independently by the code of the car
-             *
-             * This is use to count which attributes will change, by time.
-             */
-            /*distinctMapPipeline.drawFrom(Sources.<Set<String>, String, Set<String>>mapJournal(DISTINCT_MAP, mapPutEvents(), mapEventNewValue(), JournalInitialPosition.START_FROM_CURRENT))
-                    .addTimestamps()
-                    .window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS)).streamStage()
-                    .drainTo(Sinks.logger());*/
-
-            //localJet.newJob(distinctMapPipeline);
-
 
             while (true) {
                 TimeUnit.SECONDS.sleep(10);
