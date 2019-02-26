@@ -1,5 +1,5 @@
 # Hazelcast / Hazelcast Jet Demo
 
-This is a demo project to explore the function of Hazelcast and Hazelcast Jet.
+This is a demo project to explore the functions of Hazelcast and Hazelcast Jet.
 
-G.
+[Who I Am?](https://giovannimontenegro.github.io/)
