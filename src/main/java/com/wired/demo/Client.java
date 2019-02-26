@@ -19,8 +19,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static com.hazelcast.jet.Util.mapEventNewValue;
-import static com.hazelcast.jet.Util.mapPutEvents;
+import static com.hazelcast.jet.Util.*;
+import static com.hazelcast.jet.aggregate.AggregateOperations.allOf;
 import static com.hazelcast.jet.function.DistributedFunction.identity;
 import static com.hazelcast.jet.pipeline.SinkBuilder.sinkBuilder;
 
@@ -107,8 +107,11 @@ public class Client extends Thread {
             StreamStage<TimestampedEntry<String, Car>> eventsHappened = slidingWindow.groupingKey(Car::getCarCode).aggregate(AggregateOperations.reducing(new Car(),
                     identity(), (d1, d2) -> new Car(d2.getCarCode(), d2.getTime()).mergeValues(d1).mergeValues(d2),
                     (d1, d2) -> d1)).setName("one aggregation");
+            //eventsHappened.drainTo(buildCustomSink());
 
-
+            eventsHappened.window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS))
+                    .aggregate(AggregateOperations.toMap(e -> e.getKey(),e -> e.getValue()))
+                    .drainTo(Sinks.logger());
             /*
              * Aggregate the events happened by code (car plate)
              */
@@ -123,10 +126,17 @@ public class Client extends Thread {
                 t2.addAll(t1);
                 return t2;
             }));
+
+
+            /**
+             * --------------
+             */
+
+
             /**
              * Show the events happened by code (car plate)
              */
-            eventsHappened.drainTo(buildCustomSink());
+            //eventsHappened.drainTo(buildCustomSink());
 
 
             localJet.newJob(pipeline);
@@ -140,12 +150,12 @@ public class Client extends Thread {
              *
              * This is use to count which attributes will change, by time.
              */
-            distinctMapPipeline.drawFrom(Sources.<Set<String>, String, Set<String>>mapJournal(DISTINCT_MAP, mapPutEvents(), mapEventNewValue(), JournalInitialPosition.START_FROM_CURRENT))
+            /*distinctMapPipeline.drawFrom(Sources.<Set<String>, String, Set<String>>mapJournal(DISTINCT_MAP, mapPutEvents(), mapEventNewValue(), JournalInitialPosition.START_FROM_CURRENT))
                     .addTimestamps()
                     .window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS)).streamStage()
-                    .drainTo(Sinks.logger());
+                    .drainTo(Sinks.logger());*/
 
-            localJet.newJob(distinctMapPipeline);
+            //localJet.newJob(distinctMapPipeline);
 
 
             while (true) {
