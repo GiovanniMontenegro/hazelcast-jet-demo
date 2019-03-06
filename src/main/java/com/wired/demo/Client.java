@@ -15,6 +15,8 @@ import com.hazelcast.jet.pipeline.*;
 import com.hazelcast.map.journal.EventJournalMapEvent;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -110,12 +112,40 @@ public class Client extends Thread {
                     (d1, d2) -> d1)).setName("one aggregation");
             //eventsHappened.drainTo(buildCustomSink());
 
+
+            Map<String, Set<String>> drivers = new HashMap();
+
+            Set<String> carsPaul = new HashSet<>();
+            carsPaul.add("A0456ZT");
+            carsPaul.add("A1231ZT");
+
+            Set<String> carsJohn = new HashSet<>();
+            carsJohn.add("AA234ZT");
+            carsJohn.add("A1A3245");
+
+            drivers.put("PAUL",carsPaul );
+            drivers.put("JOHN",carsJohn );
+
+
             /**
              * We are going to take all the event aggregated by key.
              */
             eventsHappened.window(WindowDefinition.tumbling(SLIDING_WINDOW_LENGTH_MILLIS))
                     .aggregate(AggregateOperations.toMap(e -> e.getKey(),e -> e.getValue()))
                     .drainTo(Sinks.logger());
+
+            //OUTPUT OF THE ABOVE DRAIN: {ts=11:16:06.000, value='{
+            // A1231ZT=Car{time=1551867363979, currentTime=Wed Mar 06 11:16:03 CET 2019, carCode='A1231ZT', values={CAR_STATUS=2, CAR_IS_MOVING=1}},
+            // A1A3245=Car{time=1551867364967, currentTime=Wed Mar 06 11:16:04 CET 2019, carCode='A1A3245', values={CAR_STATUS=3}}}
+            // A0456ZT=Car{time=1551867364967, currentTime=Wed Mar 06 11:16:04 CET 2019, carCode='A0456ZT', values={CAR_STATUS=2}}}'}
+
+            // I WOULD TO MAP THE EVENTS TO SOME DRIVERS THAT ARE INTERESTED ABOUT THAT CARS.
+            // EVERY DRIVER IS ASSOCIATED TO SOME LICENSE PLATE
+            // -> PAUL : {Car{time=1551867363979, currentTime=Wed Mar 06 11:16:03 CET 2019, carCode='A1231ZT', values={CAR_STATUS=2, CAR_IS_MOVING=1}},
+            //          Car{time=1551867364967, currentTime=Wed Mar 06 11:16:04 CET 2019, carCode='A0456ZT', values={CAR_STATUS=2}}}}
+            //
+            // -> JOHN: Car{time=1551867364967, currentTime=Wed Mar 06 11:16:04 CET 2019, carCode='A1A3245', values={CAR_STATUS=3}}}
+
 
             /**
              * We are going to take all the key changed in all events to make some count after.
